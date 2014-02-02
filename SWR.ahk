@@ -1,12 +1,19 @@
 ; Copyright (c) 2014 LouisTakePILLz
 ; Licensed under Mozilla Public License Version 2.0
-
+Menu, Tray, NoIcon
 #UseHook On
-#SingleInstance force
+#SingleInstance Off
+
+if !A_iscompiled
+{
+	MsgBox, The script must be compiled in order to run
+	ExitApp
+}
+ForceSingleInstance()
 
 global RevisionDate = "01/02/2014"
 global License = "Mozilla Public License Version 2.0"
-global Version = "1.0.1"
+global Version = "1.0.2"
 
 global WindowTitle := ""
 global MonitorID := ""
@@ -22,6 +29,7 @@ if FirstParam = % "/open"
 
 ; ==Task tray icon==
 
+Menu, Tray, Icon
 Menu, Tray, Icon, thumbtack.ico, 0, 1
 Menu, Tray, Tip, Window relocator
 Hotkey, RButton, RightClick
@@ -46,6 +54,8 @@ SingleClick:
 		OpenGUI()
 		CenterWindow("Window relocator")
 	}
+	else
+		ForceShowGUI()
 Return
 
 RightClick:
@@ -145,7 +155,7 @@ OpenGUI()
 {
 	global
 	GUIOpen := true
-	Gui, Add, GroupBox, x12 y40 w220 h160, Window location & size
+	Gui, Add, GroupBox, x12 y40 w220 h160, Window location && size
 	Gui, Add, ComboBox, x12 y10 w220 h150 vWindowCB gUpdateWindowSelection,
 
 	Gui, Add, DropDownList, x22 y60 w200 h150 vMonitorDDL gUpdateMonitor, %MonitorList%
@@ -235,15 +245,7 @@ ButtonOK:
 	;WinSet, Style, -0xC00000,  %WindowTitle% ; remove the titlebar and border(s)
 	;WinSet, Style, -0x40000,   %WindowTitle% ; remove sizing border
 	WinMove, %WindowTitle%, , %X%, %Y%, %Width%, %Height%
-	Gui, Destroy
-	GUIOpen := false
-Return
-
 ButtonCancel:
-	Gui, Destroy
-	global GUIOpen := false
-Return
-
 GuiClose:
 	Gui, Destroy
 	global GUIOpen := false
@@ -260,4 +262,64 @@ CenterWindow(WinTitle)
 {
     WinGetPos,,, W, H, %WinTitle%
     WinMove, %WinTitle%,, (A_ScreenWidth/2)-(W/2), (A_ScreenHeight/2)-(H/2)
+}
+
+ForceSingleInstance()
+{
+	global
+	local FirstInstancePID
+	Process, Exist, %A_ScriptName%
+	FirstInstancePID := ErrorLevel
+	if (FirstInstancePID != DllCall("GetCurrentProcessId"))
+	{
+		;ForceShowGUI()
+		SendWM("ahk_pid" FirstInstancePID)
+		ExitApp
+	}
+	else
+		return, OnMessage(0x4A, "ReceiveWM")
+}
+
+SendWM(target)
+{
+	DetectHiddenWindows, On
+	VarSetCapacity(CopyDataStruct, 3 * A_PtrSize, 0)
+	SizeInBytes := (A_IsUnicode ? 2 : 1)
+	NumPut(SizeInBytes, CopyDataStruct, A_PtrSize)
+	NumPut("", CopyDataStruct, 2 * A_PtrSize)
+	SendMessage, 0x4a, 0, &CopyDataStruct,, %target%
+	DetectHiddenWindows, %A_OldDHW%
+	return ErrorLevel
+}
+
+ReceiveWM(wParam, lParam, Msg, hWnd)
+{
+	global args
+	A_OldDHW := A_DetectHiddenWindows
+	DetectHiddenWindows, On
+	WinGet, PPath, ProcessPath, ahk_id %hWnd%
+	DetectHiddenWindows, %A_OldDHW%
+	IfNotEqual, PPath, %A_ScriptFullPath%, Return, 0
+	args := StrGet(NumGet(lParam + 8))
+	Gosub, ActivateGUI
+	Return, 1
+}
+
+ActivateGUI:
+	if not GUIOpen
+	{
+		OpenGUI()
+		CenterWindow("Window relocator")
+	}
+	else
+		ForceShowGUI()
+Return
+
+ForceShowGUI()
+{
+	local PID
+	Process, Exist, %A_ScriptName%
+	PID := ErrorLevel
+	WinShow, ahk_pid %PID% ahk_class AutoHotkeyGUI
+	WinActivate, ahk_pid %PID% ahk_class AutoHotkeyGUI
 }

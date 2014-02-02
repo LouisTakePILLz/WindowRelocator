@@ -5,10 +5,12 @@
   !include LogicLib.nsh
 
   !define MAIN_NAME "Window Relocator"
-  !define VERSION "1.0.1"
+  !define FULL_NAME "Seamless Window relocator"
+  !define VERSION "1.0.2"
   !define AUTHOR "LouisTakePILLz"
   !define GUID "2D1C6D19-79EE-4626-8F8C-A75864BE94B9"
   !define REG_UNINSTALL "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MAIN_NAME}"
+  !define REG_APP "Software\Seamless Window Relocator"
 
   !define MUI_STARTMENUPAGE_DEFAULTFOLDER "${MAIN_NAME}" ;Default, name is used if not defined
   !define MUI_FINISHPAGE_NOAUTOCLOSE
@@ -21,7 +23,7 @@
 
   Name "Window Relocator (${VERSION})"
   OutFile "${MAIN_NAME}-${VERSION}-setup.exe"
-  InstallDir "$PROGRAMFILES\Seamless Window Relocator"
+  InstallDir "$PROGRAMFILES\${FULL_NAME}"
   RequestExecutionLevel admin
 
   Var StartMenuFolder
@@ -86,7 +88,7 @@ Function AddRegistry
   WriteUninstaller "$INSTDIR\${MAIN_NAME}-uninstall.exe"
 
   ;Register uninstaller into Add/Remove panel (for local user only)
-  WriteRegStr HKCU "Software\Seamless Window Relocator" "" $INSTDIR
+  WriteRegStr HKCU "${REG_APP}" "" $INSTDIR
   WriteRegStr HKCU "${REG_UNINSTALL}" "DisplayName" "${MAIN_NAME}"
   WriteRegStr HKCU "${REG_UNINSTALL}" "Publisher" "${AUTHOR}"
   WriteRegStr HKCU "${REG_UNINSTALL}" "DisplayIcon" "$INSTDIR\SWR.exe"
@@ -100,6 +102,7 @@ Function AddRegistry
   WriteRegDWord HKCU "${REG_UNINSTALL}" "NoRepair" 1
   WriteRegStr HKCU "${REG_UNINSTALL}" "UninstallString" "$\"$INSTDIR\${MAIN_NAME}-uninstall.exe$\""
   WriteRegStr HKCU "${REG_UNINSTALL}" "Comments" "Uninstall ${MAIN_NAME}."
+  WriteRegStr HKCU "${REG_UNINSTALL}" "StartMenuPath" "$StartMenuFolder"
 FunctionEnd
 
 ;-----------------------------
@@ -144,7 +147,7 @@ FunctionEnd
 ;Sections
 Section -StartMenu
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
-  SetShellVarContext current
+  SetShellVarContext all
   CreateDirectory "$SMPrograms\$StartMenuFolder"
   CreateShortCut "$SMPrograms\$StartMenuFolder\${MAIN_NAME}.lnk" "$INSTDIR\SWR.exe" "/open"
   CreateShortCut "$SMPrograms\$StartMenuFolder\Uninstall ${MAIN_NAME}.lnk" "$INSTDIR\${MAIN_NAME}-uninstall.exe"
@@ -170,16 +173,21 @@ Section "Window relocator (Required)"
 SectionEnd
 
 Section "Uninstall"
-  Execwait "$\"$SYSDIR\taskkill.exe$\" /F /IM SWR.exe /T"
-  Execwait `schtasks /Delete /TN ${GUID} /F`
-  Delete "$INSTDIR\thumbtack.ico"
+  ReadRegStr $StartMenuFolder HKCU "${REG_UNINSTALL}" "StartMenuPath"  ; Load the user-defined start menu path
+  Execwait "$\"$SYSDIR\taskkill.exe$\" /F /IM SWR.exe /T"              ; Kill running instances
+  Execwait `schtasks /Delete /TN ${GUID} /F`                           ; Delete registered scheduled task
+  Delete "$INSTDIR\thumbtack.ico"                                      ; Delete deployed files
   Delete "$INSTDIR\SWR.ahk"
   Delete "$INSTDIR\SWR.exe"
   Delete "$INSTDIR\${MAIN_NAME}-uninstall.exe"
-  Delete "$DESKTOP\${MAIN_NAME}.lnk"
-  RMDir /r "$SMPrograms\$StartMenuFolder"
+  Delete "$DESKTOP\${MAIN_NAME}.lnk"                                   ; Delete desktop shortcut
+  SetShellVarContext all
+  Delete "$SMPROGRAMS\$StartMenuFolder\${MAIN_NAME}.lnk"               ; Delete start menu entries
+  Delete "$SMPROGRAMS\$StartMenuFolder\Uninstall ${MAIN_NAME}.lnk"
+  RMDir "$SMPROGRAMS\$StartMenuFolder"
+  SetShellVarContext current
   StrCpy $0 "$INSTDIR"
-  Call un.DeleteDirIfEmpty
-  DeleteRegKey /ifempty HKCU "Software\Seamless Window Relocator"
+  Call un.DeleteDirIfEmpty                                             ; Safely remove installation directory
+  DeleteRegKey /ifempty HKCU "${REG_APP}"                              ; Remove registry entries
   DeleteRegKey HKCU "${REG_UNINSTALL}"
 SectionEnd
