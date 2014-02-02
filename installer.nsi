@@ -6,7 +6,7 @@
 
   !define MAIN_NAME "Window Relocator"
   !define FULL_NAME "Seamless Window relocator"
-  !define VERSION "1.0.2"
+  !define VERSION "1.0.3"
   !define AUTHOR "LouisTakePILLz"
   !define GUID "2D1C6D19-79EE-4626-8F8C-A75864BE94B9"
   !define REG_UNINSTALL "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MAIN_NAME}"
