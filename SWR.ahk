@@ -1,5 +1,6 @@
 ; Copyright (c) 2014 LouisTakePILLz
 ; Licensed under Mozilla Public License Version 2.0
+
 Menu, Tray, NoIcon
 #UseHook On
 #SingleInstance Off
@@ -13,12 +14,13 @@ ForceSingleInstance()
 
 global RevisionDate = "01/02/2014"
 global License = "Mozilla Public License Version 2.0"
-global Version = "1.0.2"
+global Version = "1.0.3"
 
 global WindowTitle := ""
 global MonitorID := ""
 global X := ""
 global Y := ""
+global StripStyle := true
 global Width := A_ScreenWidth
 global Height := A_ScreenHeight
 global GUIOpen := -1
@@ -149,13 +151,15 @@ UpdateMonitorList(append = false, id = "")
 		OpenGUI()
 		CenterWindow("Window relocator")
 	}
+	else
+		ForceShowGUI()
 Return
 
 OpenGUI()
 {
 	global
 	GUIOpen := true
-	Gui, Add, GroupBox, x12 y40 w220 h160, Window location && size
+	Gui, Add, GroupBox, x12 y40 w220 h152, Window location && size
 	Gui, Add, ComboBox, x12 y10 w220 h150 vWindowCB gUpdateWindowSelection,
 
 	Gui, Add, DropDownList, x22 y60 w200 h150 vMonitorDDL gUpdateMonitor, %MonitorList%
@@ -170,14 +174,22 @@ OpenGUI()
 	Gui, Add, Text, x142 y140 w80 h20 +Center, Height
 	Gui, Add, Edit, x142 y160 w80 h20 vHeightField gHeightFieldEdit Number, %Height%
 
-	Gui, Add, Button, x12 y210 w90 h20 vButtonOK gButtonOK, &OK
-	Gui, Add, Button, x142 y210 w90 h20 vButtonCancel gButtonCancel, Cancel
+	Gui, Add, CheckBox, x12 y194 w200 h20 vStyleCheckBox gStyleCheckBoxEdit Checked, Strip window styles (recommended)
 
-	Gui, Show, x-909 y310 h239 w244, Window relocator
+	Gui, Add, Button, x12 y218 w90 h20 vButtonOK gButtonOK, &OK
+	Gui, Add, Button, x142 y218 w90 h20 vButtonCancel gButtonCancel, Cancel
 
+	Gui, Show, x-909 y310 h247 w244, Window relocator
+
+	GuiControl,, StyleCheckBox, %StripStyle%
 	UpdateWindowList(WindowTitle)
 	UpdateMonitorList(false, MonitorID)
 }
+
+StyleCheckBoxEdit:
+	Gui, Submit, NoHide
+	global StripStyle := StyleCheckBox
+Return
 
 WidthFieldEdit:
 	Gui, Submit, NoHide
@@ -237,13 +249,16 @@ ButtonOK:
 	}
 	SetTitleMatchMode, 2
 	; Forceful method
-	WinSet, Style, -0xC00000, %WindowTitle% ; hide title bar
-	WinSet, Style, -0x800000, %WindowTitle% ; hide thin-line border
-	WinSet, Style, -0x400000, %WindowTitle% ; hide dialog frame
-	WinSet, Style, -0x40000,  %WindowTitle% ; hide thickframe/sizebox
-	; Default method
-	;WinSet, Style, -0xC00000,  %WindowTitle% ; remove the titlebar and border(s)
-	;WinSet, Style, -0x40000,   %WindowTitle% ; remove sizing border
+	if StripStyle
+	{
+		WinSet, Style, -0xC00000, %WindowTitle% ; hide title bar
+		WinSet, Style, -0x800000, %WindowTitle% ; hide thin-line border
+		WinSet, Style, -0x400000, %WindowTitle% ; hide dialog frame
+		WinSet, Style, -0x40000,  %WindowTitle% ; hide thickframe/sizebox
+		; Default method
+		;WinSet, Style, -0xC00000,  %WindowTitle% ; remove the titlebar and border(s)
+		;WinSet, Style, -0x40000,   %WindowTitle% ; remove sizing border
+	}
 	WinMove, %WindowTitle%, , %X%, %Y%, %Width%, %Height%
 ButtonCancel:
 GuiClose:
