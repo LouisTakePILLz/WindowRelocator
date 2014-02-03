@@ -6,7 +6,7 @@
 
   !define MAIN_NAME "Window Relocator"
   !define FULL_NAME "Seamless Window relocator"
-  !define VERSION "1.0.3"
+  !define VERSION "1.1"
   !define AUTHOR "LouisTakePILLz"
   !define GUID "2D1C6D19-79EE-4626-8F8C-A75864BE94B9"
   !define REG_UNINSTALL "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MAIN_NAME}"
@@ -120,7 +120,7 @@ Function DeployTaskDefinition
   ${WriteToFile} `$TEMP\${GUID}.xml` "$3" ; Splitting the labour to prevent string buildup/overflow
   ${WriteToFile} `$TEMP\${GUID}.xml` "$4"
   DetailPrint `Create file: $TEMP\${GUID}.xml`
-  Execwait `schtasks /create /XML "$TEMP\${GUID}.xml" /TN ${GUID}`
+  Execwait `schtasks /create /XML "$TEMP\${GUID}.xml" /TN {${GUID}}`
   Delete "$TEMP\${GUID}.xml"
 FunctionEnd
 
@@ -148,6 +148,7 @@ FunctionEnd
 Section -StartMenu
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
   SetShellVarContext all
+  SetOutPath $INSTDIR
   CreateDirectory "$SMPrograms\$StartMenuFolder"
   CreateShortCut "$SMPrograms\$StartMenuFolder\${MAIN_NAME}.lnk" "$INSTDIR\SWR.exe" "/open"
   CreateShortCut "$SMPrograms\$StartMenuFolder\Uninstall ${MAIN_NAME}.lnk" "$INSTDIR\${MAIN_NAME}-uninstall.exe"
@@ -160,6 +161,7 @@ Section "Desktop Shortcut"
 SectionEnd
 
 Section "Open on startup"
+  Execwait `schtasks /Delete /TN ${GUID} /F` ; Delete the old task (prior to v1.1) from previous versions
   Call DeployTaskDefinition
 SectionEnd
 
@@ -175,7 +177,7 @@ SectionEnd
 Section "Uninstall"
   ReadRegStr $StartMenuFolder HKCU "${REG_UNINSTALL}" "StartMenuPath"  ; Load the user-defined start menu path
   Execwait "$\"$SYSDIR\taskkill.exe$\" /F /IM SWR.exe /T"              ; Kill running instances
-  Execwait `schtasks /Delete /TN ${GUID} /F`                           ; Delete registered scheduled task
+  Execwait `schtasks /Delete /TN {${GUID}} /F`                         ; Delete registered scheduled task
   Delete "$INSTDIR\thumbtack.ico"                                      ; Delete deployed files
   Delete "$INSTDIR\SWR.ahk"
   Delete "$INSTDIR\SWR.exe"

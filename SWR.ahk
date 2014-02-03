@@ -12,14 +12,14 @@ if !A_iscompiled
 }
 ForceSingleInstance()
 
-global RevisionDate = "01/02/2014"
+global RevisionDate = "02/02/2014"
 global License = "Mozilla Public License Version 2.0"
-global Version = "1.0.3"
+global Version = "1.1"
 
 global WindowTitle := ""
 global MonitorID := ""
-global X := ""
-global Y := ""
+global X := "ERROR"
+global Y := "ERROR"
 global StripStyle := true
 global Width := A_ScreenWidth
 global Height := A_ScreenHeight
@@ -30,6 +30,12 @@ if FirstParam = % "/open"
 	GUIOpen := false
 
 ; ==Task tray icon==
+
+IfNotExist, thumbtack.ico
+{
+	MsgBox, thumbtack.ico could not be found.
+	Return
+}
 
 Menu, Tray, Icon
 Menu, Tray, Icon, thumbtack.ico, 0, 1
@@ -42,6 +48,8 @@ Menu, Tray, Default, Open
 Menu, Tray, Add, About, About
 Menu, Tray, Add, Exit
 
+OnMessage(0x102,"WM_Char")
+
 SingleClick:
 	if GUIOpen = -1
 	{
@@ -52,10 +60,7 @@ SingleClick:
 	Clicks =
 	RClicked =
 	if not GUIOpen
-	{
 		OpenGUI()
-		CenterWindow("Window relocator")
-	}
 	else
 		ForceShowGUI()
 Return
@@ -94,10 +99,28 @@ Return
 ~f5::
 	if GUIOpen
 	{
+		WinGet, PID, PID, A
+		pPID := GetCurrentPID()
+		if pPID != %PID%
+			Return
 		UpdateWindowList(WindowTitle)
 		UpdateMonitorList(MonitorID)
-		;global Width := A_ScreenWidth
-		;global Height := A_ScreenHeight
+	}
+Return
+
+~f6::
+	if GUIOpen
+	{
+		WinGet, PID, PID, A
+		pPID := GetCurrentPID()
+		if pPID != %PID%
+			Return
+		global WindowTitle := ""
+		global Width := A_ScreenWidth
+		global Height := A_ScreenHeight
+		GuiControl, Text, WindowCB,
+		GuiControl, Text, WidthField, %Width%
+		GuiControl, Text, HeightField, %Height%
 	}
 Return
 
@@ -145,12 +168,24 @@ UpdateMonitorList(append = false, id = "")
 		GuiControl, ChooseString, MonitorDDL, ||%MonitorID%
 }
 
+^!f::
+	pPID := GetCurrentPID()
+	WinGet, HWND, ID, A
+	WinGet, PID, PID, ahk_id %HWND%
+	WinGetTitle, TargetTitle, ahk_id %HWND%
+	if pPID != %PID%
+	{
+		global WindowTitle := TargetTitle
+		WinGetPos,,, TargetWidth, TargetHeight, ahk_id %HWND%
+		global Width := TargetWidth
+		global Height := TargetHeight
+		GuiControl, Text, WindowCB, %TargetTitle%
+		GuiControl, Text, WidthField, %TargetWidth%
+		GuiControl, Text, HeightField, %TargetHeight%
+	}
 ^!g::
 	if not GUIOpen
-	{
 		OpenGUI()
-		CenterWindow("Window relocator")
-	}
 	else
 		ForceShowGUI()
 Return
@@ -159,31 +194,37 @@ OpenGUI()
 {
 	global
 	GUIOpen := true
+	HasRan := !(X = "ERROR" || X = "ERROR")
+
 	Gui, Add, GroupBox, x12 y40 w220 h152, Window location && size
 	Gui, Add, ComboBox, x12 y10 w220 h150 vWindowCB gUpdateWindowSelection,
 
-	Gui, Add, DropDownList, x22 y60 w200 h150 vMonitorDDL gUpdateMonitor, %MonitorList%
+	Gui, Add, DropDownList, x22 y60 w200 h150 vMonitorDDL, %MonitorList%
+	if !HasRan
+		GuiControl, +gUpdateMonitor, MonitorDDL
 
 	Gui, Add, Text, x22 y90 w80 h20 +Center, X
-	Gui, Add, Edit, x22 y110 w80 h20 vCXField gCoordinateXFieldEdit Number, ERROR
+	Gui, Add, Edit, x22 y110 w80 h20 vCXField gCXFieldEdit HWNDhCXField, %X%
 	Gui, Add, Text, x142 y90 w80 h20 +Center, Y
-	Gui, Add, Edit, x142 y110 w80 h20 vCYField gCoordinateYFieldEdit Number, ERROR
+	Gui, Add, Edit, x142 y110 w80 h20 vCYField gCYFieldEdit HWNDhCYField, %Y%
 
 	Gui, Add, Text, x22 y140 w80 h20 +Center, Width
-	Gui, Add, Edit, x22 y160 w80 h20 vWidthField gWidthFieldEdit Number, %Width%
+	Gui, Add, Edit, x22 y160 w80 h20 vWidthField gWidthFieldEdit HWNDhWidthField, %Width%
 	Gui, Add, Text, x142 y140 w80 h20 +Center, Height
-	Gui, Add, Edit, x142 y160 w80 h20 vHeightField gHeightFieldEdit Number, %Height%
+	Gui, Add, Edit, x142 y160 w80 h20 vHeightField gHeightFieldEdit HWNDhHeightField, %Height%
 
 	Gui, Add, CheckBox, x12 y194 w200 h20 vStyleCheckBox gStyleCheckBoxEdit Checked, Strip window styles (recommended)
 
 	Gui, Add, Button, x12 y218 w90 h20 vButtonOK gButtonOK, &OK
 	Gui, Add, Button, x142 y218 w90 h20 vButtonCancel gButtonCancel, Cancel
 
-	Gui, Show, x-909 y310 h247 w244, Window relocator
-
+	Gui, Show, h247 w244, Window relocator
 	GuiControl,, StyleCheckBox, %StripStyle%
 	UpdateWindowList(WindowTitle)
 	UpdateMonitorList(false, MonitorID)
+	if HasRan
+		GuiControl, +gUpdateMonitor, MonitorDDL
+	ValidateCoordinateInput()
 }
 
 StyleCheckBoxEdit:
@@ -206,21 +247,21 @@ UpdateWindowSelection:
 	global WindowTitle := WindowCB
 Return
 
-CoordinateXFieldEdit:
+CXFieldEdit:
 	Gui, Submit, NoHide
-	ValidateCoordinateInput(CXField)
 	global X := CXField
+	ValidateCoordinateInput()
 Return
 
-CoordinateYFieldEdit:
+CYFieldEdit:
 	Gui, Submit, NoHide
-	ValidateCoordinateInput(CYField)
 	global Y := CYField
+	ValidateCoordinateInput()
 Return
 
-ValidateCoordinateInput(value)
+ValidateCoordinateInput()
 {
-	if StrLen(value) = 0
+	if (StrLen(X) = 0 || StrLen(Y) = 0) || (X = "-" || Y = "-")
 		GuiControl, disable, ButtonOK
 	else
 		GuiControl, enable, ButtonOK
@@ -248,9 +289,9 @@ ButtonOK:
 		Return
 	}
 	SetTitleMatchMode, 2
-	; Forceful method
 	if StripStyle
 	{
+		; Forceful method
 		WinSet, Style, -0xC00000, %WindowTitle% ; hide title bar
 		WinSet, Style, -0x800000, %WindowTitle% ; hide thin-line border
 		WinSet, Style, -0x400000, %WindowTitle% ; hide dialog frame
@@ -270,13 +311,7 @@ Return
 
 trim(str)
 {
-	return RegExReplace(str, "^\s+|\s+$", "")
-}
-
-CenterWindow(WinTitle)
-{
-    WinGetPos,,, W, H, %WinTitle%
-    WinMove, %WinTitle%,, (A_ScreenWidth/2)-(W/2), (A_ScreenHeight/2)-(H/2)
+	Return RegExReplace(str, "^\s+|\s+$", "")
 }
 
 ForceSingleInstance()
@@ -292,7 +327,7 @@ ForceSingleInstance()
 		ExitApp
 	}
 	else
-		return, OnMessage(0x4A, "ReceiveWM")
+		Return, OnMessage(0x4A, "ReceiveWM")
 }
 
 SendWM(target)
@@ -304,7 +339,7 @@ SendWM(target)
 	NumPut("", CopyDataStruct, 2 * A_PtrSize)
 	SendMessage, 0x4a, 0, &CopyDataStruct,, %target%
 	DetectHiddenWindows, %A_OldDHW%
-	return ErrorLevel
+	Return ErrorLevel
 }
 
 ReceiveWM(wParam, lParam, Msg, hWnd)
@@ -322,10 +357,7 @@ ReceiveWM(wParam, lParam, Msg, hWnd)
 
 ActivateGUI:
 	if not GUIOpen
-	{
 		OpenGUI()
-		CenterWindow("Window relocator")
-	}
 	else
 		ForceShowGUI()
 Return
@@ -333,8 +365,53 @@ Return
 ForceShowGUI()
 {
 	local PID
-	Process, Exist, %A_ScriptName%
-	PID := ErrorLevel
+	PID := GetCurrentPID()
 	WinShow, ahk_pid %PID% ahk_class AutoHotkeyGUI
 	WinActivate, ahk_pid %PID% ahk_class AutoHotkeyGUI
+}
+
+GetCurrentPID()
+{
+	Return DllCall("GetCurrentProcessId")
+}
+
+; Taken (and adapted) from http://www.autohotkey.com/board/topic/64355-guiedit-only-numbers-and-decimal/#entry405791
+WM_Char(wP)
+{
+	global CX, CY, hCXField, hCYField, hWidthField, hHeightField
+	negationEnabled := false
+
+	GuiControlGet, fCtrl, Focus
+	GuiControlGet, hCtrl, HWND, %fCtrl%
+
+	if (hCtrl = hCXField) {
+		edit := X
+		negationEnabled := true
+	}
+	else if (hCtrl = hCYField) {
+		edit := Y
+		negationEnabled := true
+	}
+	else if (hCtrl = hWidthField) {
+		edit := Width
+	}
+	else if (hCtrl = hHeightField)
+		edit := Height
+	else
+		Return
+
+	if (wP = 8) ; Backspace
+		Return
+
+	wP := Chr(wP)
+	if wP is not digit
+	{
+		Gui, Submit, NoHide
+		Gui, 1:+LastFound
+		ControlGet, sText, Selected,, %fCtrl%
+		;MsgBox, "%edit%", "%sText%", "%fCtrl%", "%hCtrl%"
+		if (wP = "-" && negationEnabled && (edit = "" || edit = sText)) ; This is a bit convoluted but it will do the trick...
+			Return
+		Return, 0
+	}
 }
