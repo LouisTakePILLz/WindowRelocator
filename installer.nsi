@@ -157,6 +157,7 @@ SectionEnd
 
 Section "Desktop Shortcut"
   SetShellVarContext current
+  SetOutPath $INSTDIR
   CreateShortCut "$DESKTOP\${MAIN_NAME}.lnk" "$INSTDIR\SWR.exe" "/open"
 SectionEnd
 
