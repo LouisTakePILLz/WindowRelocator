@@ -12,22 +12,159 @@ if !A_iscompiled
 }
 ForceSingleInstance()
 
-global RevisionDate = "02/02/2014"
-global License = "Mozilla Public License Version 2.0"
-global Version = "1.1"
+global RevisionDate := "03/02/2014"
+global License := "Mozilla Public License Version 2.0"
+global Version := "1.1.1"
+
+global StoragePath := AppData . "\Seamless Window Relocator"
+global ConfigurationPath := StoragePath . "\config.ini"
 
 global WindowTitle := ""
 global MonitorID := ""
-global X := "ERROR"
-global Y := "ERROR"
-global StripStyle := true
+global X := ""
+global Y := ""
+global StripStyles := true
 global Width := A_ScreenWidth
 global Height := A_ScreenHeight
+
+global GUICX := ""
+global GUICY := ""
 global GUIOpen := -1
+global HasRun := false
+
+global PreviousVersion := ""
+global SaveCoordinates := false
+global LoadCoordinates := false
+global SaveDimension := false
+global LoadDimension := false
+global SaveSettingsOnCancel := false
+global SavePosition := true
+global LoadPosition := true
+global InferCoordinates := false
+global InferDimension := true
 
 FirstParam = %1%
 if FirstParam = % "/open"
 	GUIOpen := false
+
+; ==Configuration==
+
+InitConfiguration()
+{
+	IfNotExist, %StoragePath%
+		FileCreateDir, %StoragePath%
+
+	IfNotExist, %ConfigurationPath%
+	{
+		; Preferences
+		IniWrite, 0, %ConfigurationPath%, preferences, SaveCoordinates
+		IniWrite, 0, %ConfigurationPath%, preferences, LoadCoordinates
+		IniWrite, 0, %ConfigurationPath%, preferences, SaveDimension
+		IniWrite, 0, %ConfigurationPath%, preferences, LoadDimension
+		IniWrite, 1, %ConfigurationPath%, preferences, SaveConfigurationOnCancel
+		; Misc
+		IniWrite, %Version%, %ConfigurationPath%, misc, Version
+		; Last values
+		IniWrite, % "", %ConfigurationPath%, lastvalues, WindowTitle
+		IniWrite, % "", %ConfigurationPath%, lastvalues, Monitor
+		IniWrite, % "", %ConfigurationPath%, lastvalues, CX
+		IniWrite, % "", %ConfigurationPath%, lastvalues, CY
+		IniWrite, % "", %ConfigurationPath%, lastvalues, Width
+		IniWrite, % "", %ConfigurationPath%, lastvalues, Height
+		IniWrite, 1, %ConfigurationPath%, lastvalues, StripStyles
+		; Infer param
+		IniWrite, 0, %ConfigurationPath%, inferparam, Coordinates
+		IniWrite, 1, %ConfigurationPath%, inferparam, Dimension
+		; Last position
+		IniWrite, 1, %ConfigurationPath%, position, SavePosition
+		IniWrite, 1, %ConfigurationPath%, position, LoadPosition
+		IniWrite, % "", %ConfigurationPath%, position, Y
+		IniWrite, % "", %ConfigurationPath%, position, X
+		IniWrite, % "", %ConfigurationPath%, position, Y
+	}
+}
+
+LoadConfiguration()
+{
+	IniRead, SaveCoordinates, %ConfigurationPath%, preferences, SaveCoordinates, 0
+	IniRead, LoadCoordinates, %ConfigurationPath%, preferences, LoadCoordinates, 0
+	IniRead, SaveDimension, %ConfigurationPath%, preferences, SaveDimension, 0
+	IniRead, LoadDimension, %ConfigurationPath%, preferences, LoadDimension, 0
+	IniRead, SaveSettingsOnCancel, %ConfigurationPath%, preferences, SaveConfigurationOnCancel, 1
+
+	IniRead, PreviousVersion, %ConfigurationPath%, misc, Version, %Version%
+
+	IniRead, SavePosition, %ConfigurationPath%, position, SavePosition, 1
+	IniRead, LoadPosition, %ConfigurationPath%, position, LoadPosition, 1
+
+	IniRead, WindowTitle, %ConfigurationPath%, lastvalues, WindowTitle, % ""
+	IniRead, MonitorID, %ConfigurationPath%, lastvalues, Monitor, 1
+	if LoadCoordinates
+	{
+		IniRead, X, %ConfigurationPath%, lastvalues, CX, % ""
+		IniRead, Y, %ConfigurationPath%, lastvalues, CY, % ""
+	}
+	if LoadDimension
+	{
+		IniRead, Width, %ConfigurationPath%, lastvalues, Width, % ""
+		IniRead, Height, %ConfigurationPath%, lastvalues, Height, % ""
+	}
+	IniRead, StripStyles, %ConfigurationPath%, lastvalues, StripStyles, % ""
+
+	IniRead, InferCoordinates, %ConfigurationPath%, inferparam, Coordinates, 0
+	IniRead, InferDimension, %ConfigurationPath%, inferparam, Dimension, 1
+
+	if LoadPosition
+	{
+		IniRead, GUICX, %ConfigurationPath%, position, X, % ""
+		IniRead, GUICY, %ConfigurationPath%, position, Y, % ""
+	}
+
+	if (StripStyles != 1 && StripStyles != 0)
+		StripStyles := true
+}
+
+UpdateConfiguration()
+{
+	IniWrite, %WindowTitle%, %ConfigurationPath%, lastvalues, WindowTitle
+	if SaveCoordinates
+	{
+		IniWrite, %X%, %ConfigurationPath%, lastvalues, CX
+		IniWrite, %Y%, %ConfigurationPath%, lastvalues, CY
+	}
+	if SaveDimension
+	{
+		IniWrite, %Width%, %ConfigurationPath%, lastvalues, Width
+		IniWrite, %Height%, %ConfigurationPath%, lastvalues, Height
+	}
+	IniWrite, %MonitorID%, %ConfigurationPath%, lastvalues, Monitor
+	IniWrite, %StripStyles%, %ConfigurationPath%, lastvalues, StripStyles
+}
+
+UpdateLocation()
+{
+	if SavePosition > 0
+	{
+		Gui, +LastFound
+		WinGetPos, GUICX, GUICY
+	}
+	if SavePosition = 1
+	{
+		IniWrite, %GUICX%, %ConfigurationPath%, position, X
+		IniWrite, %GUICY%, %ConfigurationPath%, position, Y
+	}
+}
+
+InitConfiguration()
+
+LoadConfiguration()
+
+; ==Configuration upgrade==
+
+if PreviousVersion <> Version
+{
+	IniWrite, %Version%, %ConfigurationPath%, misc, Version
+}
 
 ; ==Task tray icon==
 
@@ -83,11 +220,6 @@ Return
 
 About:
 	TrayTip, Window relocator, Author: LouisTakePILLz `r`nVersion: %Version%`r`nCopyright: (c) 2014 LouisTakePILLz`r`nLicense: %License%`r`nRevision date: %RevisionDate%,, 1
-Return
-
-GuiEscape:
-	Gui, Destroy
-	GUIOpen := false
 Return
 
 Exit:
@@ -146,6 +278,7 @@ UpdateMonitorList(append = false, id = "")
 {
 	MonitorList := ""
 	PrimaryName := ""
+	IsMonitorValid := false
 	SysGet, MouseButtonCount, 43
 	SysGet, VirtualScreenWidth, 78
 	SysGet, VirtualScreenHeight, 79
@@ -160,14 +293,37 @@ UpdateMonitorList(append = false, id = "")
 		if PrimaryName = % ""
 			PrimaryName := name
 		MonitorList := (!append && MonitorList = "") ? name : MonitorList . "|" . name
+		if MonitorID = %name%
+			IsMonitorValid := true
 	}
 	GuiControl,, MonitorDDL, %MonitorList%
-	if id = % ""
+	if !IsMonitorValid
+	{
 		GuiControl, ChooseString, MonitorDDL, ||%PrimaryName%
+		MonitorID := PrimaryName
+	}
 	else
 		GuiControl, ChooseString, MonitorDDL, ||%MonitorID%
 }
+; Open GUI (with limited parameter infering (i.e. WindowTitle))
 
+^!d::
+	pPID := GetCurrentPID()
+	WinGet, HWND, ID, A
+	WinGet, PID, PID, ahk_id %HWND%
+	WinGetTitle, TargetTitle, ahk_id %HWND%
+	if pPID != %PID%
+	{
+		global WindowTitle := TargetTitle
+		GuiControl, Text, WindowCB, %TargetTitle%
+	}
+	if not GUIOpen
+		OpenGUI()
+	else
+		ForceShowGUI()
+Return
+
+; Open GUI (with parameter infering)
 ^!f::
 	pPID := GetCurrentPID()
 	WinGet, HWND, ID, A
@@ -176,13 +332,30 @@ UpdateMonitorList(append = false, id = "")
 	if pPID != %PID%
 	{
 		global WindowTitle := TargetTitle
-		WinGetPos,,, TargetWidth, TargetHeight, ahk_id %HWND%
-		global Width := TargetWidth
-		global Height := TargetHeight
+		WinGetPos, TargetCX, TargetCY, TargetWidth, TargetHeight, ahk_id %HWND%
 		GuiControl, Text, WindowCB, %TargetTitle%
-		GuiControl, Text, WidthField, %TargetWidth%
-		GuiControl, Text, HeightField, %TargetHeight%
+		if InferDimension
+		{
+			global Width := TargetWidth
+			global Height := TargetHeight
+			GuiControl, Text, WidthField, %TargetWidth%
+			GuiControl, Text, HeightField, %TargetHeight%
+		}
+		if InferCoordinates
+		{
+			global X := X
+			global Y := Y
+			GuiControl, Text, CXField, %TargetCX%
+			GuiControl, Text, CYField, %TargetCY%
+		}
 	}
+	if not GUIOpen
+		OpenGUI()
+	else
+		ForceShowGUI()
+Return
+
+; Open GUI (Normal)
 ^!g::
 	if not GUIOpen
 		OpenGUI()
@@ -194,13 +367,12 @@ OpenGUI()
 {
 	global
 	GUIOpen := true
-	HasRan := !(X = "ERROR" || X = "ERROR")
 
 	Gui, Add, GroupBox, x12 y40 w220 h152, Window location && size
 	Gui, Add, ComboBox, x12 y10 w220 h150 vWindowCB gUpdateWindowSelection,
 
 	Gui, Add, DropDownList, x22 y60 w200 h150 vMonitorDDL, %MonitorList%
-	if !HasRan
+	if !HasRun
 		GuiControl, +gUpdateMonitor, MonitorDDL
 
 	Gui, Add, Text, x22 y90 w80 h20 +Center, X
@@ -218,18 +390,27 @@ OpenGUI()
 	Gui, Add, Button, x12 y218 w90 h20 vButtonOK gButtonOK, &OK
 	Gui, Add, Button, x142 y218 w90 h20 vButtonCancel gButtonCancel, Cancel
 
-	Gui, Show, h247 w244, Window relocator
-	GuiControl,, StyleCheckBox, %StripStyle%
+	if (GUICX = "") && (GUICY = "")
+		Gui, Show, h247 w244, Window relocator
+	else if (GUICX = "")
+		Gui, Show, y%GUICY% h247 w244, Window relocator
+	else if (GUICY = "")
+		Gui, Show, x%GUICX% h247 w244, Window relocator
+	else
+		Gui, Show, x%GUICX% y%GUICY% h247 w244, Window relocator
+
+	GuiControl,, StyleCheckBox, %StripStyles%
 	UpdateWindowList(WindowTitle)
 	UpdateMonitorList(false, MonitorID)
-	if HasRan
+	if HasRun
 		GuiControl, +gUpdateMonitor, MonitorDDL
 	ValidateCoordinateInput()
+	HasRun := true
 }
 
 StyleCheckBoxEdit:
 	Gui, Submit, NoHide
-	global StripStyle := StyleCheckBox
+	global StripStyles := StyleCheckBox
 Return
 
 WidthFieldEdit:
@@ -284,12 +465,13 @@ UpdateMonitor:
 Return
 
 ButtonOK:
+	UpdateConfiguration()
 	if (strlen(trim(WindowTitle)) = 0)
 	{
 		Return
 	}
 	SetTitleMatchMode, 2
-	if StripStyle
+	if StripStyles
 	{
 		; Forceful method
 		WinSet, Style, -0xC00000, %WindowTitle% ; hide title bar
@@ -301,9 +483,18 @@ ButtonOK:
 		;WinSet, Style, -0x40000,   %WindowTitle% ; remove sizing border
 	}
 	WinMove, %WindowTitle%, , %X%, %Y%, %Width%, %Height%
-ButtonCancel:
-GuiClose:
+	UpdateLocation()
 	Gui, Destroy
+	global GUIOpen := false
+Return
+
+ButtonCancel:
+GuiEscape:
+GuiClose:
+	UpdateLocation()
+	Gui, Destroy
+	if SaveSettingsOnCancel
+		UpdateConfiguration()
 	global GUIOpen := false
 Return
 
@@ -407,10 +598,10 @@ WM_Char(wP)
 	if wP is not digit
 	{
 		Gui, Submit, NoHide
-		Gui, 1:+LastFound
+		Gui, +LastFound
 		ControlGet, sText, Selected,, %fCtrl%
-		;MsgBox, "%edit%", "%sText%", "%fCtrl%", "%hCtrl%"
-		if (wP = "-" && negationEnabled && (edit = "" || edit = sText)) ; This is a bit convoluted but it will do the trick...
+		ControlGet, cPos, CurrentCol,, %fCtrl%
+		if (wP = "-" && negationEnabled && ((edit = "" || edit = sText) || (cPos = 1 && !InStr(edit, "-")))) ; This is a bit convoluted but it will do the trick...
 			Return
 		Return, 0
 	}

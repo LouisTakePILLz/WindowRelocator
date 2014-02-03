@@ -4,24 +4,24 @@
   !include "MUI2.nsh"
   !include LogicLib.nsh
 
-  !define MAIN_NAME "Window Relocator"
+  !define MAIN_NAME "Window relocator"
   !define FULL_NAME "Seamless Window relocator"
-  !define VERSION "1.1"
+  !define VERSION "1.1.1"
   !define AUTHOR "LouisTakePILLz"
   !define GUID "2D1C6D19-79EE-4626-8F8C-A75864BE94B9"
   !define REG_UNINSTALL "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MAIN_NAME}"
-  !define REG_APP "Software\Seamless Window Relocator"
+  !define REG_APP "Software\${FULL_NAME}"
 
   !define MUI_STARTMENUPAGE_DEFAULTFOLDER "${MAIN_NAME}" ;Default, name is used if not defined
   !define MUI_FINISHPAGE_NOAUTOCLOSE
   !define MUI_COMPONENTSPAGE_NODESC
   !define MUI_FINISHPAGE_RUN
-  !define MUI_FINISHPAGE_RUN_TEXT "Start Window relocator"
+  !define MUI_FINISHPAGE_RUN_TEXT "Start ${MAIN_NAME}"
   !define MUI_FINISHPAGE_RUN_FUNCTION "StartTask"
 
   !define MUI_ABORTWARNING
 
-  Name "Window Relocator (${VERSION})"
+  Name "${MAIN_NAME} (${VERSION})"
   OutFile "${MAIN_NAME}-${VERSION}-setup.exe"
   InstallDir "$PROGRAMFILES\${FULL_NAME}"
   RequestExecutionLevel admin
@@ -157,6 +157,7 @@ SectionEnd
 
 Section "Desktop Shortcut"
   SetShellVarContext current
+  SetOutPath $INSTDIR
   CreateShortCut "$DESKTOP\${MAIN_NAME}.lnk" "$INSTDIR\SWR.exe" "/open"
 SectionEnd
 
@@ -165,7 +166,7 @@ Section "Open on startup"
   Call DeployTaskDefinition
 SectionEnd
 
-Section "Window relocator (Required)"
+Section "${MAIN_NAME} (Required)"
   SectionIn RO
   SetOutPath "$INSTDIR"
   File thumbtack.ico
