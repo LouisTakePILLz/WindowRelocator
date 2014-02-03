@@ -6,9 +6,9 @@
 
   !define MAIN_NAME "Window Relocator"
   !define FULL_NAME "Seamless Window relocator"
-  !define VERSION "1.0.3"
+  !define VERSION "1.1"
   !define AUTHOR "LouisTakePILLz"
-  !define GUID "2D1C6D19-79EE-4626-8F8C-A75864BE94B9"
+  !define GUID "{2D1C6D19-79EE-4626-8F8C-A75864BE94B9}"
   !define REG_UNINSTALL "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MAIN_NAME}"
   !define REG_APP "Software\Seamless Window Relocator"
 
@@ -148,6 +148,7 @@ FunctionEnd
 Section -StartMenu
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
   SetShellVarContext all
+  SetOutPath $INSTDIR
   CreateDirectory "$SMPrograms\$StartMenuFolder"
   CreateShortCut "$SMPrograms\$StartMenuFolder\${MAIN_NAME}.lnk" "$INSTDIR\SWR.exe" "/open"
   CreateShortCut "$SMPrograms\$StartMenuFolder\Uninstall ${MAIN_NAME}.lnk" "$INSTDIR\${MAIN_NAME}-uninstall.exe"
