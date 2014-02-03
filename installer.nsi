@@ -6,7 +6,7 @@
 
   !define MAIN_NAME "Window relocator"
   !define FULL_NAME "Seamless Window relocator"
-  !define VERSION "1.1.1"
+  !define VERSION "1.1.1.1"
   !define AUTHOR "LouisTakePILLz"
   !define GUID "2D1C6D19-79EE-4626-8F8C-A75864BE94B9"
   !define REG_UNINSTALL "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MAIN_NAME}"
@@ -112,13 +112,15 @@ Function DeployTaskDefinition
     Delete "$TEMP\${GUID}.xml"
   IfFileExists `$TEMP\${GUID}.xml` DeleteTaskDefinition
   StrCpy $1 `<?xml version="1.0" encoding="UTF-16"?>$\r$\n<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">$\r$\n  <Triggers>$\r$\n    <LogonTrigger>$\r$\n      <Enabled>true</Enabled>$\r$\n    </LogonTrigger>$\r$\n  </Triggers>$\r$\n  <Principals>$\r$\n    <Principal id="Author">$\r$\n      <LogonType>InteractiveToken</LogonType>$\r$\n      <RunLevel>HighestAvailable</RunLevel>$\r$\n    </Principal>$\r$\n  </Principals>$\r$\n  <Settings>$\r$\n    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>$\r$\n    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>$\r$\n    <StopIfGoingOnBatteries>true</StopIfGoingOnBatteries>$\r$\n    <AllowHardTerminate>true</AllowHardTerminate>$\r$\n    <StartWhenAvailable>false</StartWhenAvailable>$\r$\n`
-  StrCpy $2 `    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>$\r$\n    <IdleSettings>$\r$\n      <StopOnIdleEnd>true</StopOnIdleEnd>$\r$\n      <RestartOnIdle>false</RestartOnIdle>$\r$\n    </IdleSettings>$\r$\n    <AllowStartOnDemand>true</AllowStartOnDemand>$\r$\n    <Enabled>true</Enabled>$\r$\n    <Hidden>false</Hidden>$\r$\n    <RunOnlyIfIdle>false</RunOnlyIfIdle>$\r$\n    <WakeToRun>false</WakeToRun>$\r$\n    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>$\r$\n    <Priority>7</Priority>$\r$\n  </Settings>$\r$\n  <Actions Context="Author">$\r$\n    <Exec>$\r$\n      <Command>`
-  StrCpy $3 `"$INSTDIR\SWR.exe"`
-  StrCpy $4 `</Command>$\r$\n    </Exec>$\r$\n  </Actions>$\r$\n</Task>`
-  ${WriteToFile} `$TEMP\${GUID}.xml` "$1"
+  StrCpy $2 `    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>$\r$\n    <IdleSettings>$\r$\n      <StopOnIdleEnd>true</StopOnIdleEnd>$\r$\n      <RestartOnIdle>false</RestartOnIdle>$\r$\n    </IdleSettings>$\r$\n    <AllowStartOnDemand>true</AllowStartOnDemand>$\r$\n    <Enabled>true</Enabled>$\r$\n    <Hidden>false</Hidden>$\r$\n    <RunOnlyIfIdle>false</RunOnlyIfIdle>$\r$\n    <WakeToRun>false</WakeToRun>$\r$\n    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>$\r$\n    <Priority>7</Priority>$\r$\n  </Settings>$\r$\n  <Actions Context="Author">$\r$\n    <Exec>$\r$\n`
+  StrCpy $3 `      <Command>"$INSTDIR\SWR.exe"</Command>$\r$\n`
+  StrCpy $4 `      <WorkingDirectory>$INSTDIR</WorkingDirectory>$\r$\n`
+  StrCpy $5 `    </Exec>$\r$\n  </Actions>$\r$\n</Task>`
+  ${WriteToFile} `$TEMP\${GUID}.xml` "$1" ; Splitting the labour to prevent string buildup/overflow
   ${WriteToFile} `$TEMP\${GUID}.xml` "$2"
-  ${WriteToFile} `$TEMP\${GUID}.xml` "$3" ; Splitting the labour to prevent string buildup/overflow
+  ${WriteToFile} `$TEMP\${GUID}.xml` "$3"
   ${WriteToFile} `$TEMP\${GUID}.xml` "$4"
+  ${WriteToFile} `$TEMP\${GUID}.xml` "$5"
   DetailPrint `Create file: $TEMP\${GUID}.xml`
   Execwait `schtasks /create /XML "$TEMP\${GUID}.xml" /TN {${GUID}}`
   Delete "$TEMP\${GUID}.xml"
@@ -145,20 +147,25 @@ FunctionEnd
 
 ;-----------------------------
 ;Sections
+
+Section "${MAIN_NAME} (Required)"
+  SectionIn RO
+  SetOutPath "$INSTDIR"
+  Execwait "$\"$SYSDIR\taskkill.exe$\" /F /IM SWR.exe /T" ; Kill running instances
+  File thumbtack.ico
+  File SWR.ahk
+  File SWR.exe
+  Call AddRegistry
+SectionEnd
+
 Section -StartMenu
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
   SetShellVarContext all
-  SetOutPath $INSTDIR
+  StrCpy $OUTDIR $INSTDIR ; Explicit 'SetOutPath'
   CreateDirectory "$SMPrograms\$StartMenuFolder"
   CreateShortCut "$SMPrograms\$StartMenuFolder\${MAIN_NAME}.lnk" "$INSTDIR\SWR.exe" "/open"
   CreateShortCut "$SMPrograms\$StartMenuFolder\Uninstall ${MAIN_NAME}.lnk" "$INSTDIR\${MAIN_NAME}-uninstall.exe"
   !insertmacro MUI_STARTMENU_WRITE_END
-SectionEnd
-
-Section "Desktop Shortcut"
-  SetShellVarContext current
-  SetOutPath $INSTDIR
-  CreateShortCut "$DESKTOP\${MAIN_NAME}.lnk" "$INSTDIR\SWR.exe" "/open"
 SectionEnd
 
 Section "Open on startup"
@@ -166,13 +173,10 @@ Section "Open on startup"
   Call DeployTaskDefinition
 SectionEnd
 
-Section "${MAIN_NAME} (Required)"
-  SectionIn RO
-  SetOutPath "$INSTDIR"
-  File thumbtack.ico
-  File SWR.ahk
-  File SWR.exe
-  Call AddRegistry
+Section "Desktop Shortcut"
+  SetShellVarContext current
+  StrCpy $OUTDIR $INSTDIR ; Explicit 'SetOutPath'
+  CreateShortCut "$DESKTOP\${MAIN_NAME}.lnk" "$INSTDIR\SWR.exe" "/open"
 SectionEnd
 
 Section "Uninstall"

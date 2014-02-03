@@ -14,7 +14,7 @@ ForceSingleInstance()
 
 global RevisionDate := "03/02/2014"
 global License := "Mozilla Public License Version 2.0"
-global Version := "1.1.1"
+global Version := "1.1.1.1"
 
 global StoragePath := AppData . "\Seamless Window Relocator"
 global ConfigurationPath := StoragePath . "\config.ini"
@@ -171,7 +171,7 @@ if PreviousVersion <> Version
 IfNotExist, thumbtack.ico
 {
 	MsgBox, thumbtack.ico could not be found.
-	Return
+	ExitApp
 }
 
 Menu, Tray, Icon
