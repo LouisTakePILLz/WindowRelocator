@@ -2,17 +2,18 @@
 ; Licensed under Mozilla Public License Version 2.0
 
   !include "MUI2.nsh"
-  !include LogicLib.nsh
+  !include "LogicLib.nsh"
 
   !define MAIN_NAME "Window relocator"
   !define FULL_NAME "Seamless Window relocator"
-  !define VERSION "1.1.1.1"
+  !define VERSION "1.1.1.2"
   !define AUTHOR "LouisTakePILLz"
   !define GUID "2D1C6D19-79EE-4626-8F8C-A75864BE94B9"
   !define REG_UNINSTALL "Software\Microsoft\Windows\CurrentVersion\Uninstall\${MAIN_NAME}"
   !define REG_APP "Software\${FULL_NAME}"
+  !define PATH_UNINSTALLER "$INSTDIR\${MAIN_NAME}-uninstall.exe"
 
-  !define MUI_STARTMENUPAGE_DEFAULTFOLDER "${MAIN_NAME}" ;Default, name is used if not defined
+  !define MUI_STARTMENUPAGE_DEFAULTFOLDER "${MAIN_NAME}"
   !define MUI_FINISHPAGE_NOAUTOCLOSE
   !define MUI_COMPONENTSPAGE_NODESC
   !define MUI_FINISHPAGE_RUN
@@ -33,15 +34,62 @@
 ;Functions & macros
 !macro WriteToFile NewLine File String
   !if `${NewLine}` == true
-  Push `${String}$\r$\n`
+    Push `${String}$\r$\n`
   !else
-  Push `${String}`
+    Push `${String}`
   !endif
   Push `${File}`
   Call WriteToFile
 !macroend
 !define WriteToFile `!insertmacro WriteToFile false`
 !define WriteLineToFile `!insertmacro WriteToFile true`
+
+!macro ExecSilent3 Path PrintOnFailure ReturnCode1 ReturnCode2 ReturnCode3
+  DetailPrint `Execute: ${Path}`
+  nsExec::ExecToStack `${Path}`
+  Pop $0
+  Pop $1
+  ${If} ${PrintOnFailure} == true
+    ${If} `$0` = `${ReturnCode1}`
+    ${ElseIf} `$0` = `${ReturnCode2}`
+    ${ElseIf} `$0` = `${ReturnCode3}`
+    ${Else}
+      DetailPrint `Execution failed: $1`
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+!macro ExecSilent2 Path PrintOnFailure ReturnCode1 ReturnCode2
+  !insertmacro ExecSilent3 `${Path}` `${PrintOnFailure}` `${ReturnCode1}` `${ReturnCode2}` `${ReturnCode2}`
+!macroend
+
+!macro ExecSilent Path PrintOnFailure ReturnCode1
+  !insertmacro ExecSilent3 `${Path}` `${PrintOnFailure}` `${ReturnCode1}` `${ReturnCode1}` `${ReturnCode1}`
+!macroend
+
+Var GetInstalledSize.total
+Function GetInstalledSize
+  Push $0
+  Push $1
+  StrCpy $GetInstalledSize.total 0
+  ${ForEach} $1 0 256 + 1
+    ${if} ${SectionIsSelected} $1
+      SectionGetSize $1 $0
+      IntOp $GetInstalledSize.total $GetInstalledSize.total + $0
+    ${Endif}
+
+    ; Error flag is set when an out-of-bound section is referenced
+    ${if} ${errors}
+      ${break}
+    ${Endif}
+  ${Next}
+
+  ClearErrors
+  Pop $1
+  Pop $0
+  IntFmt $GetInstalledSize.total "0x%08X" $GetInstalledSize.total
+  Push $GetInstalledSize.total
+FunctionEnd
 
 Function un.DeleteDirIfEmpty
   FindFirst $R0 $R1 "$0\*.*"
@@ -59,17 +107,17 @@ Function un.DeleteDirIfEmpty
 FunctionEnd
 
 Function WriteToFile
-Exch $0 ;file to write to
-Exch
-Exch $1 ;text to write
+  Exch $0 ;file to write to
+  Exch
+  Exch $1 ;text to write
 
   FileOpen $0 $0 a #open file
   FileSeek $0 0 END #go to end
   FileWrite $0 $1 #write to file
   FileClose $0
 
-Pop $1
-Pop $0
+  Pop $1
+  Pop $0
 FunctionEnd
 
 Function .onInit
@@ -82,10 +130,9 @@ Function .onInit
   ${EndIf}
 FunctionEnd
 
-
 Function AddRegistry
   ;Create uninstaller
-  WriteUninstaller "$INSTDIR\${MAIN_NAME}-uninstall.exe"
+  WriteUninstaller "${PATH_UNINSTALLER}"
 
   ;Register uninstaller into Add/Remove panel (for local user only)
   WriteRegStr HKCU "${REG_APP}" "" $INSTDIR
@@ -93,14 +140,15 @@ Function AddRegistry
   WriteRegStr HKCU "${REG_UNINSTALL}" "Publisher" "${AUTHOR}"
   WriteRegStr HKCU "${REG_UNINSTALL}" "DisplayIcon" "$INSTDIR\SWR.exe"
   WriteRegStr HKCU "${REG_UNINSTALL}" "DisplayVersion" "${VERSION}"
-  WriteRegDWord HKCU "${REG_UNINSTALL}" "EstimatedSize" 1500 ;KB
+  WriteRegDWord HKCU "${REG_UNINSTALL}" "EstimatedSize" $GetInstalledSize.total
   ; WriteRegStr HKCU "${REG_UNINSTALL}" "HelpLink" "${WEBSITE_LINK}"
   ;WriteRegStr HKCU "${REG_UNINSTALL}" "URLInfoAbout" "${WEBSITE_LINK}"
   WriteRegStr HKCU "${REG_UNINSTALL}" "InstallLocation" "$\"$INSTDIR$\""
   ;WriteRegStr HKCU "${REG_UNINSTALL}" "InstallSource" "$\"$EXEDIR$\""
   WriteRegDWord HKCU "${REG_UNINSTALL}" "NoModify" 1
   WriteRegDWord HKCU "${REG_UNINSTALL}" "NoRepair" 1
-  WriteRegStr HKCU "${REG_UNINSTALL}" "UninstallString" "$\"$INSTDIR\${MAIN_NAME}-uninstall.exe$\""
+  WriteRegStr HKCU "${REG_UNINSTALL}" "UninstallString" "$\"${PATH_UNINSTALLER}$\""
+  WriteRegStr HKCU "${REG_UNINSTALL}" "QuietUninstallString" "$\"${PATH_UNINSTALLER}$\" /S"
   WriteRegStr HKCU "${REG_UNINSTALL}" "Comments" "Uninstall ${MAIN_NAME}."
   WriteRegStr HKCU "${REG_UNINSTALL}" "StartMenuPath" "$StartMenuFolder"
 FunctionEnd
@@ -122,7 +170,7 @@ Function DeployTaskDefinition
   ${WriteToFile} `$TEMP\${GUID}.xml` "$4"
   ${WriteToFile} `$TEMP\${GUID}.xml` "$5"
   DetailPrint `Create file: $TEMP\${GUID}.xml`
-  Execwait `schtasks /create /XML "$TEMP\${GUID}.xml" /TN {${GUID}}`
+  !insertmacro ExecSilent `schtasks /create /XML "$TEMP\${GUID}.xml" /TN {${GUID}} /F` true 0
   Delete "$TEMP\${GUID}.xml"
 FunctionEnd
 
@@ -132,7 +180,7 @@ FunctionEnd
 
 ;-----------------------------
 ;Setup structure
-  ;!insertmacro MUI_PAGE_LICENSE "${NSISDIR}\Docs\Modern UI\License.txt"
+  !insertmacro MUI_PAGE_LICENSE "LICENSE"
   !insertmacro MUI_PAGE_COMPONENTS
   !insertmacro MUI_PAGE_DIRECTORY
   !insertmacro MUI_PAGE_STARTMENU Application $StartMenuFolder
@@ -151,10 +199,11 @@ FunctionEnd
 Section "${MAIN_NAME} (Required)"
   SectionIn RO
   SetOutPath "$INSTDIR"
-  Execwait "$\"$SYSDIR\taskkill.exe$\" /F /IM SWR.exe /T" ; Kill running instances
+  !insertmacro ExecSilent2 `$\"$SYSDIR\taskkill.exe$\" /F /IM SWR.exe /T` true 0 128 ; Kill running instances
   File thumbtack.ico
   File SWR.ahk
   File SWR.exe
+  Call GetInstalledSize
   Call AddRegistry
 SectionEnd
 
@@ -164,12 +213,12 @@ Section -StartMenu
   StrCpy $OUTDIR $INSTDIR ; Explicit 'SetOutPath'
   CreateDirectory "$SMPrograms\$StartMenuFolder"
   CreateShortCut "$SMPrograms\$StartMenuFolder\${MAIN_NAME}.lnk" "$INSTDIR\SWR.exe" "/open"
-  CreateShortCut "$SMPrograms\$StartMenuFolder\Uninstall ${MAIN_NAME}.lnk" "$INSTDIR\${MAIN_NAME}-uninstall.exe"
+  CreateShortCut "$SMPrograms\$StartMenuFolder\Uninstall ${MAIN_NAME}.lnk" "${PATH_UNINSTALLER}"
   !insertmacro MUI_STARTMENU_WRITE_END
 SectionEnd
 
 Section "Open on startup"
-  Execwait `schtasks /Delete /TN ${GUID} /F` ; Delete the old task (prior to v1.1) from previous versions
+  !insertmacro ExecSilent2 `schtasks /Delete /TN ${GUID} /F` true 0 1 ; Delete the old task (prior to v1.1) from previous versions
   Call DeployTaskDefinition
 SectionEnd
 
@@ -180,21 +229,23 @@ Section "Desktop Shortcut"
 SectionEnd
 
 Section "Uninstall"
-  ReadRegStr $StartMenuFolder HKCU "${REG_UNINSTALL}" "StartMenuPath"  ; Load the user-defined start menu path
-  Execwait "$\"$SYSDIR\taskkill.exe$\" /F /IM SWR.exe /T"              ; Kill running instances
-  Execwait `schtasks /Delete /TN {${GUID}} /F`                         ; Delete registered scheduled task
-  Delete "$INSTDIR\thumbtack.ico"                                      ; Delete deployed files
+  ReadRegStr $StartMenuFolder HKCU "${REG_UNINSTALL}" "StartMenuPath"                ; Load the user-defined start menu path
+  !insertmacro ExecSilent2 `$\"$SYSDIR\taskkill.exe$\" /F /IM SWR.exe /T` true 0 128 ; Kill running instances
+  !insertmacro ExecSilent `schtasks /Delete /TN {${GUID}} /F` true 0                 ; Delete registered scheduled task
+  Delete "$INSTDIR\thumbtack.ico"                                                    ; Delete deployed files
   Delete "$INSTDIR\SWR.ahk"
   Delete "$INSTDIR\SWR.exe"
-  Delete "$INSTDIR\${MAIN_NAME}-uninstall.exe"
-  Delete "$DESKTOP\${MAIN_NAME}.lnk"                                   ; Delete desktop shortcut
-  SetShellVarContext all
-  Delete "$SMPROGRAMS\$StartMenuFolder\${MAIN_NAME}.lnk"               ; Delete start menu entries
-  Delete "$SMPROGRAMS\$StartMenuFolder\Uninstall ${MAIN_NAME}.lnk"
-  RMDir "$SMPROGRAMS\$StartMenuFolder"
-  SetShellVarContext current
+  Delete "${PATH_UNINSTALLER}"
+  Delete "$DESKTOP\${MAIN_NAME}.lnk"                                                 ; Delete desktop shortcut
+  !if $StartMenuFolder != ``
+    SetShellVarContext all
+    Delete "$SMPROGRAMS\$StartMenuFolder\${MAIN_NAME}.lnk"                           ; Delete start menu entries
+    Delete "$SMPROGRAMS\$StartMenuFolder\Uninstall ${MAIN_NAME}.lnk"
+    RMDir "$SMPROGRAMS\$StartMenuFolder"
+    SetShellVarContext current
+  !endif
   StrCpy $0 "$INSTDIR"
-  Call un.DeleteDirIfEmpty                                             ; Safely remove installation directory
-  DeleteRegKey /ifempty HKCU "${REG_APP}"                              ; Remove registry entries
+  Call un.DeleteDirIfEmpty                                                           ; Safely remove installation directory
+  DeleteRegKey /ifempty HKCU "${REG_APP}"                                            ; Remove registry entries
   DeleteRegKey HKCU "${REG_UNINSTALL}"
 SectionEnd
