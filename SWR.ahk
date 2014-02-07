@@ -5,6 +5,8 @@ Menu, Tray, NoIcon
 #UseHook On
 #SingleInstance Off
 
+SetWorkingDir %A_ScriptDir%
+
 if !A_iscompiled
 {
 	MsgBox, The script must be compiled in order to run
@@ -12,9 +14,9 @@ if !A_iscompiled
 }
 ForceSingleInstance()
 
-global RevisionDate := "04/02/2014"
+global RevisionDate := "06/02/2014"
 global License := "Mozilla Public License Version 2.0"
-global Version := "1.1.1.2"
+global Version := "1.1.1.3"
 
 global StoragePath := AppData . "\Seamless Window Relocator"
 global ConfigurationPath := StoragePath . "\config.ini"
