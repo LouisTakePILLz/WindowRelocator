@@ -14,9 +14,9 @@ if !A_iscompiled
 }
 ForceSingleInstance()
 
-global RevisionDate := "06/02/2014"
+global RevisionDate := "08/02/2014"
 global License := "Mozilla Public License Version 2.0"
-global Version := "1.1.1.3"
+global Version := "1.1.2"
 
 global StoragePath := AppData . "\Seamless Window Relocator"
 global ConfigurationPath := StoragePath . "\config.ini"
@@ -43,7 +43,10 @@ global SaveSettingsOnCancel := false
 global SavePosition := true
 global LoadPosition := true
 global InferCoordinates := false
-global InferDimension := true
+global InferDimensions := true
+global ResetCoordinatesOnPartialInference := false
+global ResetDimensionsOnPartialInference := false
+global TitleMatchMode = 3
 
 FirstParam = %1%
 if FirstParam = % "/open"
@@ -64,6 +67,7 @@ InitConfiguration()
 		IniWrite, 0, %ConfigurationPath%, preferences, SaveDimension
 		IniWrite, 0, %ConfigurationPath%, preferences, LoadDimension
 		IniWrite, 1, %ConfigurationPath%, preferences, SaveConfigurationOnCancel
+		IniWrite, 3, %ConfigurationPath%, preferences, TitleMatchMode
 		; Misc
 		IniWrite, %Version%, %ConfigurationPath%, misc, Version
 		; Last values
@@ -76,7 +80,9 @@ InitConfiguration()
 		IniWrite, 1, %ConfigurationPath%, lastvalues, StripStyles
 		; Infer param
 		IniWrite, 0, %ConfigurationPath%, inferparam, Coordinates
-		IniWrite, 1, %ConfigurationPath%, inferparam, Dimension
+		IniWrite, 1, %ConfigurationPath%, inferparam, Dimensions
+		IniWrite, 0, %ConfigurationPath%, inferparam, ResetCoordinatesOnPartialInference
+		IniWrite, 0, %ConfigurationPath%, inferparam, ResetDimensionsOnPartialInference
 		; Last position
 		IniWrite, 1, %ConfigurationPath%, position, SavePosition
 		IniWrite, 1, %ConfigurationPath%, position, LoadPosition
@@ -93,6 +99,7 @@ LoadConfiguration()
 	IniRead, SaveDimension, %ConfigurationPath%, preferences, SaveDimension, 0
 	IniRead, LoadDimension, %ConfigurationPath%, preferences, LoadDimension, 0
 	IniRead, SaveSettingsOnCancel, %ConfigurationPath%, preferences, SaveConfigurationOnCancel, 1
+	IniRead, TitleMatchMode, %ConfigurationPath%, preferences, TitleMatchMode, 3
 
 	IniRead, PreviousVersion, %ConfigurationPath%, misc, Version, %Version%
 
@@ -114,7 +121,9 @@ LoadConfiguration()
 	IniRead, StripStyles, %ConfigurationPath%, lastvalues, StripStyles, % ""
 
 	IniRead, InferCoordinates, %ConfigurationPath%, inferparam, Coordinates, 0
-	IniRead, InferDimension, %ConfigurationPath%, inferparam, Dimension, 1
+	IniRead, InferDimensions, %ConfigurationPath%, inferparam, Dimensions, 1
+	IniRead, ResetCoordinatesOnPartialInference, %ConfigurationPath%, inferparam, ResetCoordinatesOnPartialInference, 0
+	IniRead, ResetDimensionsOnPartialInference, %ConfigurationPath%, inferparam, ResetDimensionsOnPartialInference, 0
 
 	if LoadPosition
 	{
@@ -163,9 +172,19 @@ LoadConfiguration()
 
 ; ==Configuration upgrade==
 
-if PreviousVersion <> Version
+if PreviousVersion != % Version
 {
 	IniWrite, %Version%, %ConfigurationPath%, misc, Version
+	; TODO: add version evaluation checks, e.g. "function("1.0.1", "1.2") = -1"
+	;if CompareVersion(PreviousVersion, "1.1.1.4") < 0
+	;{
+		IniRead, _oD, %ConfigurationPath%, inferparam, Dimension, 1
+		IniDelete, %ConfigurationPath%, inferparam, Dimension
+		IniWrite, %_oD%, %ConfigurationPath%, inferparam, Dimensions
+		IniWrite, 0, %ConfigurationPath%, inferparam, ResetCoordinatesOnPartialInference
+		IniWrite, 0, %ConfigurationPath%, inferparam, ResetDimensionsOnPartialInference
+		IniWrite, 3, %ConfigurationPath%, preferences, TitleMatchMode
+	;}
 }
 
 ; ==Task tray icon==
@@ -276,7 +295,7 @@ UpdateWindowList(windowTitle = false)
 		GuiControl, Text, WindowCB, %windowTitle%
 }
 
-UpdateMonitorList(append = false, id = "")
+UpdateMonitorList(id = "")
 {
 	MonitorList := ""
 	PrimaryName := ""
@@ -294,7 +313,7 @@ UpdateMonitorList(append = false, id = "")
 		name := "#" . A_Index . " - " . MonitorName . " - {X=" . MonitorWorkAreaLeft . ", Y=" . MonitorWorkAreaTop . "}"
 		if PrimaryName = % ""
 			PrimaryName := name
-		MonitorList := (!append && MonitorList = "") ? name : MonitorList . "|" . name
+		MonitorList := MonitorList = "" ? name : MonitorList . "|" . name
 		if MonitorID = %name%
 			IsMonitorValid := true
 	}
@@ -307,6 +326,7 @@ UpdateMonitorList(append = false, id = "")
 	else
 		GuiControl, ChooseString, MonitorDDL, ||%MonitorID%
 }
+
 ; Open GUI (with limited parameter infering (i.e. WindowTitle))
 
 ^!d::
@@ -318,6 +338,18 @@ UpdateMonitorList(append = false, id = "")
 	{
 		global WindowTitle := TargetTitle
 		GuiControl, Text, WindowCB, %TargetTitle%
+		if ResetCoordinatesOnPartialInference
+		{
+			UpdateMonitorList(MonitorID)
+			GoSub, UpdateMonitor
+		}
+		if ResetDimensionsOnPartialInference
+		{
+			global Width := A_ScreenWidth
+			global Height := A_ScreenHeight
+			GuiControl, Text, WidthField, %Width%
+			GuiControl, Text, HeightField, %Height%
+		}
 	}
 	if not GUIOpen
 		OpenGUI()
@@ -336,7 +368,7 @@ Return
 		global WindowTitle := TargetTitle
 		WinGetPos, TargetCX, TargetCY, TargetWidth, TargetHeight, ahk_id %HWND%
 		GuiControl, Text, WindowCB, %TargetTitle%
-		if InferDimension
+		if InferDimensions
 		{
 			global Width := TargetWidth
 			global Height := TargetHeight
@@ -389,7 +421,7 @@ OpenGUI()
 
 	Gui, Add, CheckBox, x12 y194 w200 h20 vStyleCheckBox gStyleCheckBoxEdit Checked, Strip window styles (recommended)
 
-	Gui, Add, Button, x12 y218 w90 h20 vButtonOK gButtonOK, &OK
+	Gui, Add, Button, x12 y218 w90 h20 vButtonOK gButtonOK Default, &OK
 	Gui, Add, Button, x142 y218 w90 h20 vButtonCancel gButtonCancel, Cancel
 
 	if (GUICX = "") && (GUICY = "")
@@ -403,7 +435,7 @@ OpenGUI()
 
 	GuiControl,, StyleCheckBox, %StripStyles%
 	UpdateWindowList(WindowTitle)
-	UpdateMonitorList(false, MonitorID)
+	UpdateMonitorList(MonitorID)
 	if HasRun
 		GuiControl, +gUpdateMonitor, MonitorDDL
 	ValidateCoordinateInput()
@@ -462,6 +494,8 @@ UpdateMonitor:
 	StringSplit, PosY, PosY, =, %A_SPACE%
 	PosX := PosX2
 	PosY := PosY2
+	global X := PosX
+	global Y := PosY
 	GuiControl, Text, CXField, %PosX%
 	GuiControl, Text, CYField, %PosY%
 Return
@@ -472,7 +506,7 @@ ButtonOK:
 	{
 		Return
 	}
-	SetTitleMatchMode, 2
+	SetTitleMatchMode, %TitleMatchMode%
 	if StripStyles
 	{
 		; Forceful method
