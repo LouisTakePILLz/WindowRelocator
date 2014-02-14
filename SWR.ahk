@@ -14,9 +14,9 @@ if !A_iscompiled
 }
 ForceSingleInstance()
 
-global RevisionDate := "08/02/2014"
+global RevisionDate := "13/02/2014"
 global License := "Mozilla Public License Version 2.0"
-global Version := "1.1.2"
+global Version := "1.1.2.1"
 
 global StoragePath := AppData . "\Seamless Window Relocator"
 global ConfigurationPath := StoragePath . "\config.ini"
@@ -25,7 +25,7 @@ global WindowTitle := ""
 global MonitorID := ""
 global X := ""
 global Y := ""
-global StripStyles := true
+global StripStyles := 1
 global Width := A_ScreenWidth
 global Height := A_ScreenHeight
 
@@ -131,8 +131,8 @@ LoadConfiguration()
 		IniRead, GUICY, %ConfigurationPath%, position, Y, % ""
 	}
 
-	if (StripStyles != 1 && StripStyles != 0)
-		StripStyles := true
+	if (StripStyles > 1 || StripStyles < -1)
+		StripStyles := 1
 }
 
 UpdateConfiguration()
@@ -286,7 +286,7 @@ UpdateWindowList(windowTitle = false)
 		id := id%A_Index%
 		WinGetClass, class, ahk_id %id%
 		WinGetTitle, title, ahk_id %id%
-		if title = % ""
+		if (title = "" || (title = "Program Manager" && class = "Progman") || (title = "Start" && class = "Button") || (title = "Start menu" && class = "DV2ControlHost") || (title = "Window relocator" && "AutoHotkeyGUI"))
 			continue
 		WindowList := WindowList . "|" . title
 	}
@@ -313,7 +313,7 @@ UpdateMonitorList(id = "")
 		name := "#" . A_Index . " - " . MonitorName . " - {X=" . MonitorWorkAreaLeft . ", Y=" . MonitorWorkAreaTop . "}"
 		if PrimaryName = % ""
 			PrimaryName := name
-		MonitorList := MonitorList = "" ? name : MonitorList . "|" . name
+		MonitorList := MonitorList . "|" . name
 		if MonitorID = %name%
 			IsMonitorValid := true
 	}
@@ -419,7 +419,7 @@ OpenGUI()
 	Gui, Add, Text, x142 y140 w80 h20 +Center, Height
 	Gui, Add, Edit, x142 y160 w80 h20 vHeightField gHeightFieldEdit HWNDhHeightField, %Height%
 
-	Gui, Add, CheckBox, x12 y194 w200 h20 vStyleCheckBox gStyleCheckBoxEdit Checked, Strip window styles (recommended)
+	Gui, Add, CheckBox, x12 y194 w200 h20 vStyleCheckBox gStyleCheckBoxEdit Check3, Strip window styles (recommended)
 
 	Gui, Add, Button, x12 y218 w90 h20 vButtonOK gButtonOK Default, &OK
 	Gui, Add, Button, x142 y218 w90 h20 vButtonCancel gButtonCancel, Cancel
@@ -507,17 +507,10 @@ ButtonOK:
 		Return
 	}
 	SetTitleMatchMode, %TitleMatchMode%
-	if StripStyles
-	{
-		; Forceful method
-		WinSet, Style, -0xC00000, %WindowTitle% ; hide title bar
-		WinSet, Style, -0x800000, %WindowTitle% ; hide thin-line border
-		WinSet, Style, -0x400000, %WindowTitle% ; hide dialog frame
-		WinSet, Style, -0x40000,  %WindowTitle% ; hide thickframe/sizebox
-		; Default method
-		;WinSet, Style, -0xC00000,  %WindowTitle% ; remove the titlebar and border(s)
-		;WinSet, Style, -0x40000,   %WindowTitle% ; remove sizing border
-	}
+	if StripStyles = 1
+		WinSet, Style, -0xC40000, %WindowTitle%
+	else if StripStyles = 0
+		WinSet, Style, +0xC40000, %WindowTitle%
 	WinMove, %WindowTitle%, , %X%, %Y%, %Width%, %Height%
 	UpdateLocation()
 	Gui, Destroy
@@ -547,9 +540,8 @@ ForceSingleInstance()
 	local FirstInstancePID
 	Process, Exist, %A_ScriptName%
 	FirstInstancePID := ErrorLevel
-	if (FirstInstancePID != DllCall("GetCurrentProcessId"))
+	if (FirstInstancePID != GetCurrentPID())
 	{
-		;ForceShowGUI()
 		SendWM("ahk_pid" FirstInstancePID)
 		ExitApp
 	}
